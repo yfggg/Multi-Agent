@@ -1,20 +1,18 @@
-﻿# LangGraph 多智能体（阿里云资源查询）
+# 多智能体客服（资源查询 + 智能导购）
 
-入口与交互流程说明：main.py
-规划逻辑与回退策略：planning.py
-LangGraph 执行图与节点职责：workflow.py
-各 Agent 行为与分支：agents.py
-问题解析与地域识别：helpers.py
-OpenAPI/DashScope 调用封装：tools.py
+本项目支持两类核心任务：
+- 资源查询：Planner 选择 AliyunInfoAssistant / InstanceTypeDetailAssistant / ChatAssistant 的执行顺序，并由 Summary 汇总。
+- 智能导购：Router 决定是否进入导购流程，Guide 负责需求收集，Recommend 基于 RAG 给出推荐。
 
-这是阿里云多智能体教程的 LangGraph 版本复刻。
-保持相同的结构（规划 -> 专项 Agent -> 汇总），不包含交互界面。
-
-## 功能说明
-- Planner 根据用户问题选择需要执行的 Agent。
-- AliyunInfoAssistant 通过 OpenAPI 查询 ECS 实例与账户余额。
-- InstanceTypeDetailAssistant 在需要规格/CPU/内存时，会优先使用 ECS 查询结果中的实例规格列表，再调用 DashScope RAG 应用查询详情（问题里已包含规格名也可直接查询）。
-- SummaryAssistant 汇总各 Agent 输出给出最终答案。
+## 代码结构
+- 统一入口与交互：`main.py`
+- LangGraph 编排入口：`workflow.py`
+- 顶层任务路由：`planning.py`
+- 导购流程实现：`shopping_flow.py`
+- 资源查询流程实现：`resource_flow.py`
+- 通用/规格助手：`agents.py`
+- 对话辅助：`helpers.py`
+- DashScope 调用与 OpenAPI 封装：`tools.py`
 
 ## 安装与配置
 1) 安装依赖：
@@ -25,8 +23,6 @@ pip install -r requirements.txt
 2) 配置环境变量：
 ```
 $env:DASHSCOPE_API_KEY = "YOUR_DASHSCOPE_API_KEY"
-$env:ALIBABA_CLOUD_ACCESS_KEY_ID = "YOUR_ALIBABA_CLOUD_ACCESS_KEY_ID"
-$env:ALIBABA_CLOUD_ACCESS_KEY_SECRET = "YOUR_ALIBABA_CLOUD_ACCESS_KEY_SECRET"
 $env:RAG_APP_ID = "YOUR_RAG_APP_ID"
 ```
 
@@ -36,22 +32,41 @@ $env:DEFAULT_REGION_ID = "cn-hangzhou"
 $env:DASHSCOPE_MODEL = "qwen-plus"
 ```
 
+如需查询账号余额或 ECS 实例，请再配置：
+```
+$env:ALIBABA_CLOUD_ACCESS_KEY_ID = "YOUR_ALIBABA_CLOUD_ACCESS_KEY_ID"
+$env:ALIBABA_CLOUD_ACCESS_KEY_SECRET = "YOUR_ALIBABA_CLOUD_ACCESS_KEY_SECRET"
+```
+
 ## 运行
+进入多轮对话：
 ```
-python main.py "查询我在 cn-hangzhou 的 ECS 实例并返回余额"
-```
-
-更多测试命令示例：
-```
-python main.py "我的阿里云余额还有多少钱啊"
-python main.py "我在杭州有哪些 ECS 实例"
-python main.py "我想知道我在杭州的 ECS 实例，还有我的阿里云余额"
-python main.py "我在杭州有哪些 ECS 实例，把每个实例规格的 CPU/内存告诉我"
-python main.py "请介绍 ecs.e-c1m1.large 的实例规格（CPU/内存）"
+python main.py
 ```
 
-如果问题中没有包含地域，请设置 `DEFAULT_REGION_ID`。
+从一句话开始：
+```
+python main.py "我想选一台适合 Web 服务的实例"
+```
 
-## .env 使用说明
-- 推荐使用 `.env` 文件配置密钥，项目启动时会自动加载。
-- 参考模板：`.env.example`，复制为 `.env` 后填入你的真实值。
+指定会话 ID：
+```
+python main.py --session-id user-123 "我想选一台适合 Web 服务的实例"
+```
+
+交互指令：
+- 输入 `exit/quit/退出` 结束对话
+- 输入 `reset` 重置导购状态
+
+## 示例
+资源查询：
+```
+我的阿里云余额还有多少？
+我在杭州有哪些 ECS 实例？
+介绍一下 ecs.g8i.large 的规格
+```
+
+导购：
+```
+我要选型，预算每月 500 元，2-4 核，内存 8-16GB
+```
