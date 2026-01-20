@@ -1,23 +1,51 @@
-import argparse
+﻿import argparse
 
-from workflow import run
+from helpers import is_exit_command
+from workflow import build_app
 
-# CLI 入口：解析问题并触发多智能体流程
+
+def _print_tip() -> None:
+    print("已进入客服模式，可多轮对话。输入 exit/quit/退出 结束，输入 reset 重置导购状态。")
 
 
 def main() -> int:
-    """解析命令行参数/交互输入，并调用工作流返回结果。"""
-    parser = argparse.ArgumentParser(description="LangGraph 多智能体阿里云示例。")
-    parser.add_argument("question", nargs="?", help="输入给系统的问题。")
+    parser = argparse.ArgumentParser(description="多智能体客服（资源查询 + 智能导购）")
+    parser.add_argument("question", nargs="?", help="输入给系统的问题")
+    parser.add_argument(
+        "--session-id",
+        dest="session_id",
+        default=None,
+        help="会话 ID（用于区分不同用户的记忆）",
+    )
     args = parser.parse_args()
 
-    # 优先使用命令行参数，否则进入交互式输入
-    question = args.question or input("请输入问题：").strip()
-    if not question:
-        raise SystemExit("必须提供问题。")
+    app = build_app()
+    session_id = args.session_id or "cli"
+    _print_tip()
 
-    # 执行多智能体工作流并输出最终结果
-    print(run(question))
+    if args.question:
+        result = app.invoke(
+            {"question": args.question},
+            config={"configurable": {"thread_id": session_id}},
+        )
+        reply = result.get("reply", "")
+        if reply:
+            print(reply)
+
+    while True:
+        question = input("你：").strip()
+        if not question:
+            continue
+        if is_exit_command(question):
+            print("已结束本次对话。")
+            break
+        result = app.invoke(
+            {"question": question},
+            config={"configurable": {"thread_id": session_id}},
+        )
+        reply = result.get("reply", "")
+        if reply:
+            print(reply)
     return 0
 
 
